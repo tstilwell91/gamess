@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR in region $AWS_DEFAULT_REGION...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+  build:
+    commands:
+      - echo Building the Docker image...
+      - docker build -t gamess .
+  post_build:
+    commands:
+      - echo Tagging Docker image...
+      - docker tag gamess:latest $ECR_REPO_URI:latest
+      - echo Pushing Docker image to ECR...
+      - docker push $ECR_REPO_URI:latest
+
+artifacts:
+  files: []
