@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y \
     libopenblas64-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Gamess wants the non-64 lib
+RUN ln -s /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas64.a \
+          /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas.a
+
 # Install jinja2 (needed by GAMESS's create-install-info.py).
 RUN pip3 install jinja2
 
