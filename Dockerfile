@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     libopenblas64-dev \
+    openmpi-bin \
+    libopenmpi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Gamess wants the non-64 lib
@@ -54,7 +56,7 @@ RUN chmod +x bin/create-install-info.py && \
        --version 00 \
        --math openblas \
        --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-pthread \
-       --ddi_comm sockets \
+       --ddi_comm mpi \
        --fortran gfortran \
        --fortran_version 11.4
 
