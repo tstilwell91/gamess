@@ -9,6 +9,7 @@ ENV TERM=xterm
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
+    bash \
     wget \
     tar \
     csh \
@@ -18,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     libopenblas64-dev \
+    liblapack-dev \
     openmpi-bin \
     libopenmpi-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -54,11 +56,14 @@ RUN chmod +x bin/create-install-info.py && \
        --path /opt/gamess \
        --build_path /opt/gamess \
        --version 00 \
+       --fortran gfortran \
+       --fortran_version 11.4 \
        --math openblas \
        --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-pthread \
        --ddi_comm mpi \
-       --fortran gfortran \
-       --fortran_version 11.4
+       --mpi_lib openmpi \
+       --mpi_path /usr/lib/x86_64-linux-gnu/openmpi \
+       --openmp
 
 # Build GAMESS.
 RUN make ddi && make -j"$(nproc)"
