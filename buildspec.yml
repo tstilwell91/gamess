@@ -17,6 +17,11 @@ phases:
       - docker tag gamess:latest $ECR_REPO_URI:latest
       - echo Pushing Docker image to ECR...
       - docker push $ECR_REPO_URI:latest
+      - echo Extracting install.info from container...
+      - container_id=$(docker create gamess)
+      - docker cp $container_id:/opt/gamess/install.info .
+      - docker rm $container_id
 
 artifacts:
-  files: []
+  files:
+    - install.info
