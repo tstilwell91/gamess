@@ -1,94 +1,120 @@
-# Use a CUDA 12.8 development base image
-FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.0-devel-rockylinux9
 
-# Set environment to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=xterm
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gfortran \
-    bash \
-    wget \
-    tar \
-    csh \
-    patch \
+# Install system dependencies and development tools
+RUN dnf -y update && dnf -y install \
+    make \
     cmake \
-    doxygen \
+    gcc \
+    gcc-c++ \
+    gfortran \
+    openmpi \
+    openmpi-devel \
+    boost-devel \
+    eigen3-devel \
+    zlib-devel \
     python3 \
     python3-pip \
-    libopenblas64-dev \
-    liblapack-dev \
-    openmpi-bin \
-    libopenmpi-dev \
-    libomp-dev \
+    curl \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    which \
+    wget \
+    tar \
+    && dnf clean all
 
-# OpenMP + GPU Offload settings
-ENV GMS_OPENMP=true \
-    GMS_OPENMP_OFFLOAD=true
-
-# GAMESS requires a non-64 symlink
-RUN ln -s /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas64.a \
-          /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas.a
+# Set up MPI environment
+ENV PATH=/usr/lib64/openmpi/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:$LD_LIBRARY_PATH
 
 # Install Python dependencies
 RUN pip3 install jinja2
 
-# Set library path
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/openblas64:/usr/lib/x86_64-linux-gnu/openblas64-pthread:$LD_LIBRARY_PATH
+# Install Miniconda and MKL libraries
+RUN curl -sLo ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh && \
+    /opt/conda/bin/conda install -y -c intel mkl mkl-include && \
+    /opt/conda/bin/conda clean -afy
 
-# Set version for NVIDIA HPC SDK
-ENV NVHPC_VERSION=25.3
-ENV NVHPC_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}
+ENV PATH="/opt/conda/bin:$PATH"
+ENV MKLROOT="/opt/conda"
 
-# Install NVIDIA HPC SDK with nvfortran for CUDA 12.8
-RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz -C /opt && \
-    rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/install -silent
+# Install HDF5 from source (parallel enabled)
+RUN mkdir -p /opt/src && cd /opt/src && \
+    curl -LO https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.1/src/hdf5-1.12.1.tar.bz2 && \
+    tar -xjf hdf5-1.12.1.tar.bz2 && \
+    cd hdf5-1.12.1 && \
+    ./configure --enable-parallel --enable-fortran --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && rm -rf hdf5-1.12.1*
 
-# Update PATH and environment
-ENV PATH=${NVHPC_HOME}/bin:$PATH
-ENV MANPATH=${NVHPC_HOME}/man:$MANPATH
-ENV LD_LIBRARY_PATH=${NVHPC_HOME}/lib:$LD_LIBRARY_PATH
+ENV HDF5_ROOT=/usr/local
 
-# Copy GAMESS tarball into container
+# Install Global Arrays (GA) from GitHub (5.8+)
+RUN cd /opt/src && \
+    git clone https://github.com/GlobalArrays/ga.git && \
+    cd ga && \
+    git checkout v5.8.1 && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_INSTALL_PREFIX=/opt/ga \
+        -DBUILD_SHARED_LIBS=ON \
+        -DGA_MPI=ON \
+        -DGA_BLAS_LIBRARIES="-L${MKLROOT}/lib -lmkl_gf_ilp64 -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm -ldl" \
+        -DGA_SCALAPACK_LIBRARIES="-L${MKLROOT}/lib -lmkl_scalapack_ilp64 -lmkl_blacs_openmpi_ilp64" && \
+    make -j$(nproc) && make install
+
+ENV GA_PATH=/opt/ga
+ENV LD_LIBRARY_PATH=$GA_PATH/lib:$LD_LIBRARY_PATH
+
+# Copy GAMESS source tarball into image (assumed to be added later)
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
 
-# Extract GAMESS into /opt/gamess
+# Extract GAMESS
 RUN mkdir -p /opt/gamess && \
-    tar -xzvf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 && \
+    tar -xzf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 && \
     rm /tmp/gamess.tar.gz
 
 # Set working directory
 WORKDIR /opt/gamess
 
-# Patch rungms to set GMSPATH
+# Patch path inside rungms
 RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms
 
-# Generate install.info for nvfortran + GPU offload
-RUN chmod +x bin/create-install-info.py && \
-    python3 bin/create-install-info.py \
-       --target linux64 \
-       --path /opt/gamess \
-       --build_path /opt/gamess \
-       --version 00 \
-       --fortran nvfortran \
-       --fortran_version 25.3 \
-       --math openblas \
-       --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-pthread \
-       --ddi_comm mpi \
-       --mpi_lib openmpi \
-       --mpi_path /usr/lib/x86_64-linux-gnu/openmpi \
-       --openmp \
-       --openmp-offload \
-       --cublas
+# Generate install.info non-interactively
+RUN python3 bin/create-install-info.py \
+    --target linux64 \
+    --path /opt/gamess \
+    --build_path /opt/gamess \
+    --version 00 \
+    --fortran gfortran \
+    --fortran_version 12.2 \
+    --math openblas \
+    --mathlib_path /opt/conda/lib \
+    --mathlib_include_path /opt/conda/include \
+    --mpi \
+    --mpi_path /usr/lib64/openmpi \
+    --mpi_lib openmpi \
+    --sysv \
+    --openmp \
+    --libcchem \
+    --libcchem_gpu_support \
+    --cuda_path=/usr/local/cuda \
+    --ga_path=/opt/ga \
+    --boost_path=/usr/include \
+    --hdf5_path=/usr/local \
+    --eigen_path=/usr/include/eigen3 \
+    --rungms
 
-# Build GAMESS
-RUN make ddi && make -j"$(nproc)"
+# Compile GAMESS
+RUN make ddi && ./compall && make && mv gamess.00.x bin && make clean
 
-# Default command
+# Final environment setup
+ENV PATH="/opt/gamess:$PATH"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:/opt/ga/lib:/usr/local/lib:$LD_LIBRARY_PATH"
+
+# Set default command
 ENTRYPOINT ["/opt/gamess/rungms-dev"]
