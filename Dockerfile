@@ -22,7 +22,13 @@ RUN apt-get update && apt-get install -y \
     liblapack-dev \
     openmpi-bin \
     libopenmpi-dev \
+    libomp-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for OpenMP and GPU offload
+ENV GMS_OPENMP=true \
+    GMS_OPENMP_OFFLOAD=true
 
 # Gamess wants the non-64 lib
 RUN ln -s /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas64.a \
