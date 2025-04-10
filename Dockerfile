@@ -45,10 +45,10 @@ ENV NVHPC_VERSION=25.3
 ENV NVHPC_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}
 
 # Install NVIDIA HPC SDK with nvfortran for CUDA 12.8
-RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2024_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    tar -xzf nvhpc_2024_253_Linux_x86_64_cuda_12.8.tar.gz -C /opt && \
-    rm nvhpc_2024_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    /opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}/install -silent
+RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz -C /opt && \
+    rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/install -silent
 
 # Update PATH and environment
 ENV PATH=${NVHPC_HOME}/bin:$PATH
