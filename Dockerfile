@@ -38,7 +38,7 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas64.a \
 RUN pip3 install jinja2
 
 # (Optional) Set the library path for OpenBLAS (usually unnecessary on Ubuntu, but can help)
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/openblas64:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/openblas64:/usr/lib/x86_64-linux-gnu/openblas64-pthread:$LD_LIBRARY_PATH
 
 # Copy the GAMESS source tarball into the container.
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
@@ -69,7 +69,9 @@ RUN chmod +x bin/create-install-info.py && \
        --ddi_comm mpi \
        --mpi_lib openmpi \
        --mpi_path /usr/lib/x86_64-linux-gnu/openmpi \
-       --openmp
+       --openmp \
+       --openmp-offload \
+       --cublas
 
 # Build GAMESS.
 RUN make ddi && make -j"$(nproc)"
