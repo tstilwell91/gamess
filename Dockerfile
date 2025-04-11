@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     liblapack-dev \
     openmpi-bin \
     libopenmpi-dev \
+    slurm-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Gamess wants the non-64 lib
@@ -66,8 +67,10 @@ RUN chmod +x bin/create-install-info.py && \
        --openmp \ 
        --rungms
 
-# Build GAMESS.
-RUN make ddi && make -j"$(nproc)"
+# Define the container's default behavior (optional, but good practice).
+# Using bash -c to ensure the script runs with arguments if needed later.
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/opt/gamess/rungms"]
 
-# Define the container's default behavior.
-ENTRYPOINT ["/opt/gamess/rungms"]
+# Set working directory for convenience when running interactively
+WORKDIR /opt/gamess
