@@ -68,7 +68,9 @@ RUN chmod +x bin/create-install-info.py && \
        --rungms
 
 # Build GAMESS.
-RUN make ddi && make -j"$(nproc)"
+RUN make ddi 
+RUN make 
+
 
 # Define the container's default behavior (optional, but good practice).
 # Using bash -c to ensure the script runs with arguments if needed later.
