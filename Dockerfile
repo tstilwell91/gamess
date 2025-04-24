@@ -1,11 +1,14 @@
-# Use an NVIDIA CUDA development base image.
 FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
 
-# Prevent interactive prompts during package installation.
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=xterm
+ENV USERSCR=/shared/userscr
+ENV PATH=/opt/slurm/bin/:$PATH
+ENV I_MPI_PMI_LIBRARY=/opt/slurm/lib/libpmi2.so
+ENV I_MPI_ROOT=/usr/local
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/openblas64-openmp:$LD_LIBRARY_PATH
 
-# Install system packages, including the 64-bit integer OpenBLAS dev package.
+# Install required packages
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
@@ -18,40 +21,33 @@ RUN apt-get update && apt-get install -y \
     doxygen \
     python3 \
     python3-pip \
-    libopenblas64-dev \
-    liblapack-dev \
-    openmpi-bin \
-    libopenmpi-dev \
-    slurm-client \
-    && rm -rf /var/lib/apt/lists/*
+    libopenblas64-openmp-dev \
+    libhwloc15 libjson-c5 libjwt0 \
+ && rm -rf /var/lib/apt/lists/*
 
-# Gamess wants the non-64 lib
-RUN ln -s /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas64.a \
-          /usr/lib/x86_64-linux-gnu/openblas64-pthread/libopenblas.a
+# Install Intel MPI runtime via pip
+RUN pip3 install jinja2 impi_rt impi_devel
 
-# Install jinja2 (needed by GAMESS's create-install-info.py).
-RUN pip3 install jinja2
+# Workaround for .so versions mismatches
+WORKDIR /usr/lib/x86_64-linux-gnu
+RUN ln -s libhwloc.so libhwloc.so.5 && \
+    ln -s libssl.so.3 libssl.so.10 && \
+    ln -s libcrypto.so.3 libcrypto.so.10 && \
+    ln -s libjwt.so.0 libjwt.so.2 && \
+    ln -s libjson-c.so.5 libjson-c.so.2 && \
+    ln -s libreadline.so.8.1 libreadline.so.6 && \
+    ln -s libhistory.so.8.1 libhistory.so.6
 
-# (Optional) Set the library path for OpenBLAS (usually unnecessary on Ubuntu, but can help)
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/openblas64:$LD_LIBRARY_PATH
-
-# Copy the GAMESS source tarball into the container.
+# Copy and extract GAMESS
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
-
-# Extract GAMESS into /opt/gamess.
 RUN mkdir -p /opt/gamess && \
-    tar -xzvf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 && \
+    tar -xzf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 && \
     rm /tmp/gamess.tar.gz
 
-# Set the working directory to the GAMESS source.
+# Set up GAMESS
 WORKDIR /opt/gamess
-
-# Update the GMSPATH variable inside rungms to point to /opt/gamess
-RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms
-
-# Generate the install.info file non-interactively.
-# Note: Point --mathlib_path to the OpenBLAS64 location.
-RUN chmod +x bin/create-install-info.py && \
+RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms && \
+    chmod +x bin/create-install-info.py && \
     python3 bin/create-install-info.py \
        --target linux64 \
        --path /opt/gamess \
@@ -60,22 +56,27 @@ RUN chmod +x bin/create-install-info.py && \
        --fortran gfortran \
        --fortran_version 11.4 \
        --math openblas \
-       --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-pthread \
+       --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-openmp \
        --ddi_comm mpi \
-       --mpi_lib openmpi \
-       --mpi_path /usr/lib/x86_64-linux-gnu/openmpi \
-       --openmp \ 
+       --mpi_lib impi \
+       --mpi_path /usr/local \
+       --openmp \
        --rungms
 
-# Build GAMESS.
-RUN make ddi 
-RUN make 
+# Build GAMESS
+RUN make ddi && make
 
+# Patch rungms for flexible Apptainer container name via ENV
+RUN sed -i /opt/gamess/rungms \
+    -e 's|set MPI_KICKOFF_STYLE=.*|set MPI_KICKOFF_STYLE=slurm|' \
+    -e 's|-c \${OMP_NUM_THREADS} \$GMSPATH/gamess.\$VERNO.x|-c ${OMP_NUM_THREADS} $CRUN $GMSPATH/gamess.$VERNO.x|' \
+    -e 's|srun --exclusive --export=ALL|srun --mpi=pmi2 --exclusive --export=ALL|' \
+    -e "5i if (! \$?GAMESS_CONTAINER) setenv GAMESS_CONTAINER gamess_container" \
+    -e "6i set CRUN='apptainer exec -B /shared -B /opt/slurm -B /etc/passwd -B /run/slurm -B /var/spool/slurmd -B /opt/aws/pcs/scheduler --sharens \$GAMESS_CONTAINER'" 
 
-# Define the container's default behavior (optional, but good practice).
-# Using bash -c to ensure the script runs with arguments if needed later.
+# Default behavior
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/opt/gamess/rungms"]
 
-# Set working directory for convenience when running interactively
+# Interactive working directory
 WORKDIR /opt/gamess
