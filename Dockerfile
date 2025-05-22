@@ -83,8 +83,7 @@ RUN chmod +x bin/create-install-info.py && \
       --openmp-offload \
       --cublas \
       --rungms 
-
-RUN sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE = "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
+RUN sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
 RUN ls -l install.info && cat install.info
 
 # Build GAMESS
