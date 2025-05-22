@@ -40,14 +40,14 @@ RUN ln -s libhwloc.so libhwloc.so.5 && \
 
 # Download and install NVIDIA HPC SDK
 WORKDIR /tmp
-RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
-    NVHPC_SILENT=true \
+RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz 
+RUN tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz
+RUN rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz 
+RUN NVHPC_SILENT=true \
     NVHPC_INSTALL_DIR=/opt/nvidia/hpc_sdk \
     NVHPC_INSTALL_TYPE=single \
-    ./nvhpc_2025_253_Linux_x86_64_cuda_12.8/install_components/install && \
-    rm -rf ./nvhpc_2025_253_Linux_x86_64_cuda_12.8
+    ./nvhpc_2025_253_Linux_x86_64_cuda_12.8/install_components/install 
+RUN rm -rf ./nvhpc_2025_253_Linux_x86_64_cuda_12.8
 
 # Set environment variables for NVIDIA HPC SDK
 ENV NVHPC_ROOT=/opt/nvidia/hpc_sdk/Linux_x86_64/25.3
@@ -58,14 +58,15 @@ ENV CPATH=$NVHPC_ROOT/math_libs/include:$CPATH
 
 # Copy and extract GAMESS
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
-RUN mkdir -p /opt/gamess && \
-    tar -xzf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 && \
-    rm /tmp/gamess.tar.gz
+RUN mkdir -p /opt/gamess 
+RUN tar -xzf /tmp/gamess.tar.gz -C /opt/gamess --strip-components=1 
+RUN rm /tmp/gamess.tar.gz
 
 # Set up GAMESS
 WORKDIR /opt/gamess
-RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms && \
-    chmod +x bin/create-install-info.py && \
+RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms 
+
+RUN chmod +x bin/create-install-info.py && \
     python3 bin/create-install-info.py \
       --target linux64 \
       --path /opt/gamess \
@@ -81,11 +82,12 @@ RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms && \
       --openmp \
       --openmp-offload \
       --cublas \
-      --rungms && \
-    sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE = "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
+      --rungms 
+RUN ls -l install.info && cat install.info
+RUN sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE = "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
 
 # Build GAMESS
-RUN make ddi && make -j$(nproc)
+RUN make ddi && make 
 
 # Patch rungms for flexible Apptainer container name via ENV
 RUN sed -i /opt/gamess/rungms \
