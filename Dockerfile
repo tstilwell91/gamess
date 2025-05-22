@@ -38,6 +38,24 @@ RUN ln -s libhwloc.so libhwloc.so.5 && \
     ln -s libreadline.so.8.1 libreadline.so.6 && \
     ln -s libhistory.so.8.1 libhistory.so.6
 
+# Download and install NVIDIA HPC SDK
+WORKDIR /tmp
+RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    NVHPC_SILENT=true \
+    NVHPC_INSTALL_DIR=/opt/nvidia/hpc_sdk \
+    NVHPC_INSTALL_TYPE=single \
+    ./nvhpc_2025_253_Linux_x86_64_cuda_12.8/install_components/install && \
+    rm -rf ./nvhpc_2025_253_Linux_x86_64_cuda_12.8
+
+# Set environment variables for NVIDIA HPC SDK
+ENV NVHPC_ROOT=/opt/nvidia/hpc_sdk/Linux_x86_64/25.3
+ENV PATH=$NVHPC_ROOT/compilers/bin:$PATH
+ENV LIBRARY_PATH=$NVHPC_ROOT/math_libs/lib64:$LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$NVHPC_ROOT/math_libs/lib64:$LD_LIBRARY_PATH
+ENV CPATH=$NVHPC_ROOT/math_libs/include:$CPATH
+
 # Copy and extract GAMESS
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
 RUN mkdir -p /opt/gamess && \
@@ -49,22 +67,25 @@ WORKDIR /opt/gamess
 RUN sed -i 's|set GMSPATH=.*|set GMSPATH=/opt/gamess|' rungms && \
     chmod +x bin/create-install-info.py && \
     python3 bin/create-install-info.py \
-       --target linux64 \
-       --path /opt/gamess \
-       --build_path /opt/gamess \
-       --version 00 \
-       --fortran gfortran \
-       --fortran_version 11.4 \
-       --math openblas \
-       --mathlib_path /usr/lib/x86_64-linux-gnu/openblas64-openmp \
-       --ddi_comm mpi \
-       --mpi_lib impi \
-       --mpi_path /usr/local \
-       --openmp \
-       --rungms
+      --target linux64 \
+      --path /opt/gamess \
+      --build_path /opt/gamess \
+      --version 01 \
+      --fortran nvfortran \
+      --fortran_version 25.3 \
+      --math nvblas \
+      --mathlib_path /opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 \
+      --ddi_comm mpi \
+      --mpi_lib impi \
+      --mpi_path /usr/local \
+      --openmp \
+      --openmp-offload \
+      --cublas \
+      --rungms && \
+    sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE = "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
 
 # Build GAMESS
-RUN make ddi && make
+RUN make ddi && make -j$(nproc)
 
 # Patch rungms for flexible Apptainer container name via ENV
 RUN sed -i /opt/gamess/rungms \
@@ -72,7 +93,7 @@ RUN sed -i /opt/gamess/rungms \
     -e 's|-c \${OMP_NUM_THREADS} \$GMSPATH/gamess.\$VERNO.x|-c ${OMP_NUM_THREADS} $CRUN $GMSPATH/gamess.$VERNO.x|' \
     -e 's|srun --exclusive --export=ALL|srun --mpi=pmi2 --exclusive --export=ALL|' \
     -e "5i if (! \$?GAMESS_CONTAINER) setenv GAMESS_CONTAINER gamess_container" \
-    -e "6i set CRUN='apptainer exec -B /shared -B /opt/slurm -B /etc/passwd -B /run/slurm -B /var/spool/slurmd -B /opt/aws/pcs/scheduler --sharens \$GAMESS_CONTAINER'" 
+    -e "6i set CRUN='apptainer exec -B /shared -B /opt/slurm -B /etc/passwd -B /run/slurm -B /var/spool/slurmd -B /opt/aws/pcs/scheduler --sharens \$GAMESS_CONTAINER'"
 
 # Default behavior
 ENTRYPOINT ["/bin/bash", "-c"]
