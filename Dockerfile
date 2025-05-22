@@ -83,11 +83,12 @@ RUN chmod +x bin/create-install-info.py && \
       --openmp-offload \
       --cublas \
       --rungms 
-RUN ls -l install.info && cat install.info
+
 RUN sed -i 's|^setenv GMS_LAPACK_LINK_LINE.*|setenv GMS_LAPACK_LINK_LINE = "-L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/math_libs/lib64 -lblas_ilp64 -llapack_ilp64 -L/opt/nvidia/hpc_sdk/Linux_x86_64/2025/cuda/lib64 -lcublas -lcublasLt -lcudart -lcuda"|' install.info
+RUN ls -l install.info && cat install.info
 
 # Build GAMESS
-RUN make ddi && make 
+RUN /bin/csh -c 'source install.info; make ddi && make'
 
 # Patch rungms for flexible Apptainer container name via ENV
 RUN sed -i /opt/gamess/rungms \
