@@ -56,6 +56,14 @@ ENV LIBRARY_PATH=$NVHPC_ROOT/math_libs/lib64:$LIBRARY_PATH
 ENV LD_LIBRARY_PATH=$NVHPC_ROOT/math_libs/lib64:$LD_LIBRARY_PATH
 ENV CPATH=$NVHPC_ROOT/math_libs/include:$CPATH
 
+# Explicitly compile for selected GPU architectures:
+# - sm_70: NVIDIA Volta (e.g., V100)
+# - sm_80: NVIDIA Ampere (e.g., A100)
+# - sm_89: NVIDIA Ada Lovelace (e.g., L4)
+# - sm_90: NVIDIA Hopper (e.g., H100)
+ENV NVFORTRAN_CUDAFLAGS="-gpu=ccall,cc70,cc80,cc89,cc90"
+
+
 # Copy and extract GAMESS
 COPY gamess-2024.2.1.tar.gz /tmp/gamess.tar.gz
 RUN mkdir -p /opt/gamess 
@@ -71,7 +79,7 @@ RUN chmod +x bin/create-install-info.py && \
       --target linux64 \
       --path /opt/gamess \
       --build_path /opt/gamess \
-      --version 01 \
+      --version 00 \
       --fortran nvfortran \
       --fortran_version 25.3 \
       --math nvblas \
