@@ -40,14 +40,14 @@ RUN ln -s libhwloc.so libhwloc.so.5 && \
 
 # Download and install NVIDIA HPC SDK
 WORKDIR /tmp
-RUN wget https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz 
-RUN tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz
-RUN rm nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz 
-RUN NVHPC_SILENT=true \
-    NVHPC_INSTALL_DIR=/opt/nvidia/hpc_sdk \
-    NVHPC_INSTALL_TYPE=single \
-    ./nvhpc_2025_253_Linux_x86_64_cuda_12.8/install_components/install 
-RUN rm -rf ./nvhpc_2025_253_Linux_x86_64_cuda_12.8
+RUN set -eux; \
+    wget -q https://developer.download.nvidia.com/hpc-sdk/25.3/nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    tar -xzf nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    rm -f nvhpc_2025_253_Linux_x86_64_cuda_12.8.tar.gz && \
+    NVHPC_SILENT=true NVHPC_INSTALL_DIR=/opt/nvidia/hpc_sdk NVHPC_INSTALL_TYPE=single \
+      ./nvhpc_2025_253_Linux_x86_64_cuda_12.8/install_components/install && \
+    rm -rf ./nvhpc_2025_253_Linux_x86_64_cuda_12.8
+
 
 # Set environment variables for NVIDIA HPC SDK
 ENV NVHPC_ROOT=/opt/nvidia/hpc_sdk/Linux_x86_64/25.3
